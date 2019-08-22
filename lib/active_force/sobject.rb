@@ -139,8 +139,7 @@ module ActiveForce
     end
 
     def self.field field_name, args = {}
-      p [field_name, args]
-      mapping.field field_name, args
+       mapping.field field_name, args
       attribute field_name
       define_attribute_methods field_name
     end
