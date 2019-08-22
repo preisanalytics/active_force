@@ -1,6 +1,5 @@
 require 'active_model'
-require 'active_attr'
-require 'active_attr/dirty'
+#require 'active_attr'
 require 'active_force/active_query'
 require 'active_force/association'
 require 'active_force/mapping'
@@ -13,10 +12,14 @@ module ActiveForce
   class RecordInvalid < StandardError;end
 
   class SObject
-    include ActiveAttr::Model
-    include ActiveAttr::Dirty
-    extend ActiveForce::Association
+    include ActiveModel::Model
+    include ActiveModel::Attributes
+    include ActiveModel::Validations
+    include ActiveModel::Model
     extend ActiveModel::Callbacks
+    include ActiveModel::Dirty
+
+    extend ActiveForce::Association
 
     define_model_callbacks :save, :create, :update
 
@@ -55,7 +58,7 @@ module ActiveForce
       mash.each do |column, sf_value|
         sobject.write_value column, sf_value
       end
-      sobject.changed_attributes.clear
+      sobject.clear_changes_information
       sobject
     end
 
@@ -65,7 +68,7 @@ module ActiveForce
       run_callbacks :save do
         run_callbacks :update do
           sfdc_client.update! table_name, attributes_for_sfdb
-          changed_attributes.clear
+          clear_changes_information
         end
       end
       true
@@ -86,7 +89,7 @@ module ActiveForce
       run_callbacks :save do
         run_callbacks :create do
           self.id = sfdc_client.create! table_name, attributes_for_sfdb
-          changed_attributes.clear
+          clear_changes_information
         end
       end
       self
@@ -136,15 +139,17 @@ module ActiveForce
     end
 
     def self.field field_name, args = {}
+      p [field_name, args]
       mapping.field field_name, args
       attribute field_name
+      define_attribute_methods field_name
     end
 
     def reload
       association_cache.clear
       reloaded = self.class.find(id)
       self.attributes = reloaded.attributes
-      changed_attributes.clear
+      clear_changes_information
       self
     end
 
@@ -185,8 +190,14 @@ module ActiveForce
       false
     end
 
+    def changed_attributes_result
+      changed.inject({}) do |c, attr|
+        c[attr]=send(attr)
+        c
+      end
+    end
     def attributes_for_sfdb
-      attrs = self.class.mapping.translate_to_sf(attributes_and_changes)
+      attrs = self.class.mapping.translate_to_sf(changed_attributes_result) # was attributes_and_changes
       attrs.merge!({'Id' => id }) if persisted?
       attrs
     end
